@@ -14,6 +14,10 @@ const VIDEO_EXTENSIONS = [
   ".m4v",
 ];
 
+const VENDOR_ASSETS = {
+  "/vendor/packery.js": "https://cdn.jsdelivr.net/npm/packery@3.0.0/dist/packery.pkgd.min.js",
+};
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -193,6 +197,39 @@ async function serveMedia(request, env, url) {
   return new Response(object.body, { headers });
 }
 
+async function serveVendorAsset(request, url) {
+  const upstream = VENDOR_ASSETS[url.pathname];
+  if (!upstream) return null;
+
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString(), { method: "GET" });
+  const cached = await cache.match(cacheKey);
+
+  if (cached) return cached;
+
+  const response = await fetch(upstream, {
+    headers: {
+      "User-Agent": "ExpoLagos-Presentation/1.0",
+    },
+  });
+
+  if (!response.ok) {
+    return new Response("Vendor asset unavailable", { status: 502 });
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("Content-Type", "application/javascript; charset=utf-8");
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+
+  const proxied = new Response(response.body, {
+    status: response.status,
+    headers,
+  });
+
+  await cache.put(cacheKey, proxied.clone());
+  return proxied;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -205,6 +242,10 @@ export default {
           "Access-Control-Allow-Headers": "*",
         },
       });
+    }
+
+    if (VENDOR_ASSETS[url.pathname]) {
+      return serveVendorAsset(request, url);
     }
 
     if (url.pathname === "/api/list") {
