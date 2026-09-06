@@ -1,4 +1,5 @@
 const CONFIG = {
+  galleryMode: "collage", // Change to "selector" to restore the old cropped preview grid.
   ui: {
     cover: "PORTADA.jpeg",
     MICE: "PORTADA MICE.jpg",
@@ -29,11 +30,14 @@ const CONFIG = {
   },
 };
 
+const OFFLINE_FINGERPRINT_KEY = "expolagos-offline-fingerprint-v1";
+
 const state = {
   section: null,
   category: null,
   images: [],
   lightboxIndex: 0,
+  offlinePlan: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -50,6 +54,7 @@ $("miceCover").src = imageUrl(CONFIG.ui.MICE);
 $("leisureCover").src = imageUrl(CONFIG.ui.Leisure);
 
 $("startButton").addEventListener("click", () => showScreen("selector"));
+$("selectorHomeButton").addEventListener("click", () => showScreen("cover"));
 
 document.querySelectorAll(".choice-panel").forEach((panel) => {
   panel.addEventListener("click", () => openSection(panel.dataset.section));
@@ -106,9 +111,15 @@ function renderGallery() {
   const grid = document.createElement("div");
   grid.className = "gallery-grid";
 
+  if (CONFIG.galleryMode === "selector") {
+    grid.classList.add("selector-mode");
+  }
+
   state.images.forEach((image, index) => {
     const card = document.createElement("button");
     card.className = "gallery-card";
+    card.type = "button";
+    card.setAttribute("aria-label", `Abrir imagen ${index + 1}`);
 
     const img = document.createElement("img");
     img.src = image.url;
@@ -117,6 +128,8 @@ function renderGallery() {
     img.decoding = "async";
 
     card.appendChild(img);
+
+    // The collage is the primary experience, but the fullscreen viewer stays available.
     card.addEventListener("click", () => openLightbox(index));
     grid.appendChild(card);
   });
@@ -126,10 +139,6 @@ function renderGallery() {
 
 $("categoriesBack").addEventListener("click", () => showScreen("selector"));
 $("galleryBack").addEventListener("click", () => openSection(state.section));
-
-document.querySelectorAll(".home-button").forEach((button) => {
-  button.addEventListener("click", () => showScreen("cover"));
-});
 
 function openLightbox(index) {
   state.lightboxIndex = index;
@@ -170,25 +179,28 @@ document.addEventListener("keydown", (event) => {
 });
 
 let touchStartX = 0;
-$("lightbox").addEventListener("touchstart", (event) => {
-  touchStartX = event.changedTouches[0].screenX;
-}, { passive: true });
 
-$("lightbox").addEventListener("touchend", (event) => {
-  const delta = event.changedTouches[0].screenX - touchStartX;
-  if (Math.abs(delta) < 55) return;
-  changeLightbox(delta < 0 ? 1 : -1);
-}, { passive: true });
+$("lightbox").addEventListener(
+  "touchstart",
+  (event) => {
+    touchStartX = event.changedTouches[0].screenX;
+  },
+  { passive: true },
+);
+
+$("lightbox").addEventListener(
+  "touchend",
+  (event) => {
+    const delta = event.changedTouches[0].screenX - touchStartX;
+    if (Math.abs(delta) < 55) return;
+    changeLightbox(delta < 0 ? 1 : -1);
+  },
+  { passive: true },
+);
 
 const allPrefixes = Object.values(CONFIG.sections)
   .flat()
   .map((category) => category.prefix);
-
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js").catch(() => {});
-} else {
-  $("offlineButton").style.display = "none";
-}
 
 function formatBytes(bytes) {
   if (!bytes) return "0 MB";
@@ -196,25 +208,70 @@ function formatBytes(bytes) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(0)} MB`;
 }
 
-async function estimateOfflineSize() {
-  let bytes = 0;
-  let count = 0;
+async function hashText(value) {
+  if (!window.crypto?.subtle) return value;
 
-  for (const prefix of allPrefixes) {
-    try {
-      const response = await fetch(`/api/list?prefix=${encodeURIComponent(prefix)}`);
-      const data = await response.json();
-      (data.images || []).forEach((image) => {
-        bytes += image.size || 0;
-        count += 1;
-      });
-    } catch (error) {}
-  }
+  const encoded = new TextEncoder().encode(value);
+  const hash = await crypto.subtle.digest("SHA-256", encoded);
 
-  return { bytes, count };
+  return Array.from(new Uint8Array(hash))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
-$("offlineButton").addEventListener("click", async () => {
+async function getOfflinePlan() {
+  const response = await fetch("/api/list?prefix=", { cache: "no-store" });
+  if (!response.ok) throw new Error("Unable to inspect media library");
+
+  const data = await response.json();
+  const images = [...(data.images || [])].sort((a, b) => a.key.localeCompare(b.key));
+
+  const signature = images
+    .map((image) => `${image.key}|${image.size || 0}|${image.uploaded || ""}`)
+    .join("\n");
+
+  return {
+    fingerprint: await hashText(signature),
+    count: images.length,
+    bytes: images.reduce((total, image) => total + (image.size || 0), 0),
+  };
+}
+
+async function refreshOfflineButton() {
+  const button = $("offlineButton");
+
+  if (!("serviceWorker" in navigator)) {
+    button.hidden = true;
+    return;
+  }
+
+  const savedFingerprint = localStorage.getItem(OFFLINE_FINGERPRINT_KEY);
+
+  if (!navigator.onLine) {
+    button.hidden = true;
+    return;
+  }
+
+  button.hidden = true;
+
+  try {
+    const plan = await getOfflinePlan();
+    state.offlinePlan = plan;
+
+    if (savedFingerprint && savedFingerprint === plan.fingerprint) {
+      button.hidden = true;
+      return;
+    }
+
+    button.textContent = savedFingerprint ? "Actualizar offline" : "Preparar offline";
+    button.hidden = false;
+  } catch (error) {
+    // If the library cannot be checked, do not show a stale action button.
+    button.hidden = true;
+  }
+}
+
+async function prepareOffline() {
   const button = $("offlineButton");
   button.disabled = true;
   $("offlineStatus").classList.add("visible");
@@ -224,7 +281,9 @@ $("offlineButton").addEventListener("click", async () => {
   try {
     if (navigator.storage?.persist) await navigator.storage.persist();
 
-    const plan = await estimateOfflineSize();
+    const plan = state.offlinePlan || (await getOfflinePlan());
+    state.offlinePlan = plan;
+
     const proceed = window.confirm(
       `Se guardarán ${plan.count} imágenes (${formatBytes(plan.bytes)}) en esta tablet. ¿Continuar?`,
     );
@@ -247,26 +306,49 @@ $("offlineButton").addEventListener("click", async () => {
     $("offlineText").textContent = "No se pudo iniciar la descarga.";
     button.disabled = false;
   }
-});
+}
 
-navigator.serviceWorker?.addEventListener("message", (event) => {
-  const data = event.data || {};
+$("offlineButton").addEventListener("click", prepareOffline);
 
-  if (data.type === "OFFLINE_PROGRESS") {
-    const percent = data.total ? Math.round((data.done / data.total) * 100) : 0;
-    $("progressBar").style.width = `${percent}%`;
-    $("offlineText").textContent = `Preparando contenido offline: ${data.done} / ${data.total}`;
-  }
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").then(() => refreshOfflineButton()).catch(() => {
+    $("offlineButton").hidden = true;
+  });
 
-  if (data.type === "OFFLINE_DONE") {
-    $("progressBar").style.width = "100%";
-    $("offlineText").textContent = data.failed
-      ? `Offline preparado. ${data.failed} imágenes no pudieron guardarse.`
-      : "Contenido offline listo.";
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    const data = event.data || {};
 
-    $("offlineButton").textContent = "Offline listo";
-    $("offlineButton").disabled = false;
+    if (data.type === "OFFLINE_PROGRESS") {
+      const percent = data.total ? Math.round((data.done / data.total) * 100) : 0;
+      $("progressBar").style.width = `${percent}%`;
+      $("offlineText").textContent = `Preparando contenido offline: ${data.done} / ${data.total}`;
+    }
 
-    setTimeout(() => $("offlineStatus").classList.remove("visible"), 3500);
-  }
+    if (data.type === "OFFLINE_DONE") {
+      $("progressBar").style.width = "100%";
+      $("offlineButton").disabled = false;
+
+      if (data.failed) {
+        $("offlineText").textContent = `Offline preparado parcialmente. ${data.failed} imágenes no pudieron guardarse.`;
+        $("offlineButton").textContent = "Reintentar offline";
+        $("offlineButton").hidden = false;
+      } else {
+        if (state.offlinePlan?.fingerprint) {
+          localStorage.setItem(OFFLINE_FINGERPRINT_KEY, state.offlinePlan.fingerprint);
+        }
+
+        $("offlineText").textContent = "Contenido offline listo.";
+        $("offlineButton").hidden = true;
+      }
+
+      setTimeout(() => $("offlineStatus").classList.remove("visible"), 3500);
+    }
+  });
+} else {
+  $("offlineButton").hidden = true;
+}
+
+window.addEventListener("online", refreshOfflineButton);
+window.addEventListener("offline", () => {
+  $("offlineButton").hidden = true;
 });

@@ -1,4 +1,4 @@
-const SHELL_CACHE = "lcc-shell-v3";
+const SHELL_CACHE = "lcc-shell-v3-1";
 const MEDIA_CACHE = "lcc-media-v3";
 
 self.addEventListener("install", (event) => {
@@ -103,7 +103,6 @@ async function prepareOffline(prefixes, uiKeys, client) {
 
       await cache.put(apiRequest, response.clone());
       const data = await response.json();
-
       imageUrls = imageUrls.concat((data.images || []).map((image) => image.url));
     } catch (error) {}
   }
