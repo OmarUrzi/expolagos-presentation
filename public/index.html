@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#01164D" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Viajes Dannemann | ExpoLagos</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main id="app">
+    <section id="cover" class="screen active">
+      <img id="coverImage" class="full-bg" alt="" />
+      <div class="cover-shade"></div>
+      <button id="startButton" class="start-button">Empezar</button>
+    </section>
+
+    <section id="selector" class="screen selector-screen">
+      <button class="choice-panel" data-section="MICE">
+        <img id="miceCover" alt="MICE" />
+        <span class="choice-label">MICE</span>
+      </button>
+      <button class="choice-panel" data-section="Leisure">
+        <img id="leisureCover" alt="Leisure" />
+        <span class="choice-label">Leisure</span>
+      </button>
+      <button id="offlineButton" class="offline-button">Preparar offline</button>
+    </section>
+
+    <section id="categories" class="screen scroll-screen">
+      <div id="categoriesBackground" class="categories-background"></div>
+      <div class="categories-overlay"></div>
+
+      <div class="topbar">
+        <div class="nav-left">
+          <button id="categoriesBack" class="nav-button">← Volver</button>
+        </div>
+        <div id="categoriesTitle" class="page-title"></div>
+        <div class="nav-right">
+          <button class="nav-button home-button">Inicio</button>
+        </div>
+      </div>
+
+      <div id="categoriesGrid" class="categories-grid"></div>
+    </section>
+
+    <section id="gallery" class="screen scroll-screen">
+      <div class="topbar gallery-topbar">
+        <div class="nav-left">
+          <button id="galleryBack" class="nav-button">← Volver</button>
+        </div>
+        <div id="galleryTitle" class="page-title"></div>
+        <div class="nav-right">
+          <button class="nav-button home-button">Inicio</button>
+        </div>
+      </div>
+
+      <div class="gallery-wrap">
+        <div id="galleryContent"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="offlineStatus" class="offline-status">
+    <div id="offlineText">Preparando contenido...</div>
+    <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+  </div>
+
+  <div id="lightbox" class="lightbox">
+    <button id="lightboxClose" class="lightbox-close">×</button>
+    <button id="lightboxPrev" class="lightbox-prev">‹</button>
+    <img id="lightboxImage" class="lightbox-image" alt="" />
+    <button id="lightboxNext" class="lightbox-next">›</button>
+    <div id="lightboxCounter" class="lightbox-counter"></div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
