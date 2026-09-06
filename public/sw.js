@@ -1,12 +1,21 @@
-const SHELL_CACHE = "lcc-shell-v3-3";
+const SHELL_CACHE = "lcc-shell-v3-4";
 const MEDIA_CACHE = "lcc-media-v3";
+
+const SHELL_ASSETS = [
+  "/",
+  "/index.html",
+  "/styles.css",
+  "/app.js",
+  "/packery-layout.js",
+  "/video-audio.js",
+  "/vendor/packery.js",
+  "/manifest.webmanifest",
+];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) =>
-      cache.addAll(["/", "/index.html", "/styles.css", "/app.js", "/manifest.webmanifest"]),
-    ),
+    caches.open(SHELL_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)),
   );
 });
 
@@ -81,11 +90,7 @@ self.addEventListener("fetch", (event) => {
 
   if (
     request.mode === "navigate" ||
-    url.pathname === "/" ||
-    url.pathname === "/index.html" ||
-    url.pathname === "/styles.css" ||
-    url.pathname === "/app.js" ||
-    url.pathname === "/manifest.webmanifest"
+    SHELL_ASSETS.includes(url.pathname)
   ) {
     event.respondWith(networkFirst(request, SHELL_CACHE, "/"));
     return;
