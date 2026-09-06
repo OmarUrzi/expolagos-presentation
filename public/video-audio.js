@@ -1,6 +1,5 @@
 (() => {
   const SOUND_CLASS = "video-sound-unlock";
-  let hasUserInteracted = false;
 
   function ensureStyles() {
     if (document.getElementById("video-audio-styles")) return;
@@ -54,7 +53,6 @@
 
       button.addEventListener("click", async (event) => {
         event.stopPropagation();
-        hasUserInteracted = true;
 
         try {
           video.muted = false;
@@ -66,6 +64,7 @@
         } catch (error) {
           video.muted = true;
           video.defaultMuted = true;
+          video.setAttribute("muted", "");
           await video.play().catch(() => {});
           button.hidden = false;
         }
@@ -88,8 +87,8 @@
     video.playsInline = true;
     video.volume = 1;
 
-    // Prefer audio-on playback. This succeeds on browsers/tablets that allow
-    // playback after prior interaction with the presentation.
+    // Only attempt automatic playback when the video is first created.
+    // After that, a manual pause is always respected.
     try {
       video.muted = false;
       video.defaultMuted = false;
@@ -98,8 +97,7 @@
       if (button) button.hidden = true;
       return;
     } catch (error) {
-      // Browser policy blocked audible autoplay. Keep the visual moving and
-      // expose a one-tap audio unlock instead of stopping the video entirely.
+      // Audible autoplay can be blocked by browser policy.
     }
 
     video.muted = true;
@@ -115,35 +113,6 @@
       tryPlayWithSound(video);
     });
   }
-
-  function unlockExistingVideos() {
-    if (!hasUserInteracted) return;
-
-    document.querySelectorAll("#gallery video").forEach(async (video) => {
-      const button = getUnlockButton(video);
-
-      try {
-        video.muted = false;
-        video.defaultMuted = false;
-        video.removeAttribute("muted");
-        video.volume = 1;
-        await video.play();
-        if (button) button.hidden = true;
-      } catch (error) {
-        // Keep the fallback button visible if the browser still requires a
-        // direct tap on the media control itself.
-      }
-    });
-  }
-
-  document.addEventListener(
-    "pointerdown",
-    () => {
-      hasUserInteracted = true;
-      unlockExistingVideos();
-    },
-    { passive: true },
-  );
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
