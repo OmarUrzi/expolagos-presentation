@@ -18,6 +18,10 @@ const VENDOR_ASSETS = {
   "/vendor/packery.js": "https://cdn.jsdelivr.net/npm/packery@3.0.0/dist/packery.pkgd.min.js",
 };
 
+const PUBLIC_R2_BASE = "https://pub-92ddf88a319e488c90b25470f45c3026.r2.dev";
+const DEFAULT_THUMB_WIDTH = 960;
+const MAX_THUMB_WIDTH = 1600;
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -53,6 +57,18 @@ function mimeFromKey(key) {
   return "application/octet-stream";
 }
 
+function encodeR2Key(key) {
+  return key
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+}
+
+function thumbnailWidth(url) {
+  const requested = Number(url.searchParams.get("width")) || DEFAULT_THUMB_WIDTH;
+  return Math.max(320, Math.min(MAX_THUMB_WIDTH, Math.round(requested)));
+}
+
 async function listMedia(env, prefix) {
   let cursor;
   const media = [];
@@ -76,6 +92,10 @@ async function listMedia(env, prefix) {
         uploaded: object.uploaded,
         etag: object.etag || null,
         url: `/img?key=${encodeURIComponent(object.key)}`,
+        thumbUrl:
+          type === "image"
+            ? `/thumb?width=${DEFAULT_THUMB_WIDTH}&key=${encodeURIComponent(object.key)}`
+            : null,
       });
     }
 
@@ -197,6 +217,57 @@ async function serveMedia(request, env, url) {
   return new Response(object.body, { headers });
 }
 
+async function serveThumbnail(request, env, url) {
+  const key = url.searchParams.get("key");
+  if (!key || getMediaType(key) !== "image") {
+    return new Response("Invalid image key", { status: 400 });
+  }
+
+  const width = thumbnailWidth(url);
+  const sourceUrl = `${PUBLIC_R2_BASE}/${encodeR2Key(key)}`;
+
+  try {
+    const transformed = await fetch(sourceUrl, {
+      headers: {
+        Accept: request.headers.get("Accept") || "image/avif,image/webp,image/*,*/*;q=0.8",
+      },
+      cf: {
+        image: {
+          width,
+          fit: "scale-down",
+          quality: 74,
+          format: "auto",
+          metadata: "none",
+        },
+      },
+    });
+
+    if (transformed.ok) {
+      const headers = new Headers(transformed.headers);
+      headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      headers.set("Vary", "Accept");
+
+      return new Response(transformed.body, {
+        status: transformed.status,
+        headers,
+      });
+    }
+  } catch (error) {
+    // Keep the gallery usable even if Image Transformations is unavailable.
+  }
+
+  const original = await env.BUCKET.get(key);
+  if (!original) return new Response("Image not found", { status: 404 });
+
+  const headers = new Headers();
+  original.writeHttpMetadata?.(headers);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", mimeFromKey(key));
+  headers.set("Cache-Control", "public, max-age=3600");
+  headers.set("X-Thumbnail-Fallback", "original");
+
+  return new Response(original.body, { headers });
+}
+
 async function serveVendorAsset(request, url) {
   const upstream = VENDOR_ASSETS[url.pathname];
   if (!upstream) return null;
@@ -271,6 +342,10 @@ export default {
 
     if (url.pathname === "/img") {
       return serveMedia(request, env, url);
+    }
+
+    if (url.pathname === "/thumb") {
+      return serveThumbnail(request, env, url);
     }
 
     return env.ASSETS.fetch(request);
