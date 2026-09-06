@@ -1,4 +1,4 @@
-const SHELL_CACHE = "lcc-shell-v3-2";
+const SHELL_CACHE = "lcc-shell-v3-3";
 const MEDIA_CACHE = "lcc-media-v3";
 
 self.addEventListener("install", (event) => {
@@ -70,6 +70,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname === "/img") {
+    if (request.headers.has("Range")) {
+      event.respondWith(fetch(request));
+      return;
+    }
+
     event.respondWith(cacheFirst(request, MEDIA_CACHE));
     return;
   }
@@ -98,7 +103,7 @@ self.addEventListener("message", (event) => {
 
 async function prepareOffline(prefixes, uiKeys, client) {
   const cache = await caches.open(MEDIA_CACHE);
-  let imageUrls = uiKeys.map((key) => `/img?key=${encodeURIComponent(key)}`);
+  let mediaUrls = uiKeys.map((key) => `/img?key=${encodeURIComponent(key)}`);
 
   for (const prefix of prefixes) {
     const apiUrl = `/api/list?prefix=${encodeURIComponent(prefix)}`;
@@ -110,18 +115,19 @@ async function prepareOffline(prefixes, uiKeys, client) {
 
       await cache.put(apiRequest, response.clone());
       const data = await response.json();
-      imageUrls = imageUrls.concat((data.images || []).map((image) => image.url));
+      const media = data.media || data.images || [];
+      mediaUrls = mediaUrls.concat(media.map((item) => item.url));
     } catch (error) {}
   }
 
-  imageUrls = [...new Set(imageUrls)];
+  mediaUrls = [...new Set(mediaUrls)];
 
   let done = 0;
   let failed = 0;
 
-  for (const imageUrl of imageUrls) {
+  for (const mediaUrl of mediaUrls) {
     try {
-      const request = new Request(new URL(imageUrl, self.location.origin).href);
+      const request = new Request(new URL(mediaUrl, self.location.origin).href);
       const existing = await cache.match(request);
 
       if (!existing) {
@@ -134,8 +140,8 @@ async function prepareOffline(prefixes, uiKeys, client) {
     }
 
     done += 1;
-    client?.postMessage({ type: "OFFLINE_PROGRESS", done, total: imageUrls.length, failed });
+    client?.postMessage({ type: "OFFLINE_PROGRESS", done, total: mediaUrls.length, failed });
   }
 
-  client?.postMessage({ type: "OFFLINE_DONE", done, total: imageUrls.length, failed });
+  client?.postMessage({ type: "OFFLINE_DONE", done, total: mediaUrls.length, failed });
 }
