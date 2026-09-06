@@ -1,4 +1,4 @@
-const SHELL_CACHE = "lcc-shell-v3-6";
+const SHELL_CACHE = "lcc-shell-v3-7";
 const MEDIA_CACHE = "lcc-media-v3";
 
 const SHELL_ASSETS = [
@@ -107,18 +107,17 @@ function parseByteRange(rangeHeader, size) {
 async function cachedRangeResponse(request) {
   const cache = await caches.open(MEDIA_CACHE);
 
-  // The offline preparation stores the complete media object without a Range
-  // header. Always look up that canonical full-object request first.
-  const fullRequest = new Request(request.url, {
-    method: "GET",
-    credentials: request.credentials,
-  });
-
+  // Offline preparation stores one complete response for every media URL.
+  // Match that full object rather than the incoming Range request.
+  const fullRequest = new Request(request.url, { method: "GET" });
   const cached = await cache.match(fullRequest);
   if (!cached) return null;
 
-  const buffer = await cached.arrayBuffer();
-  const size = buffer.byteLength;
+  // IMPORTANT: use Blob.slice(), not arrayBuffer(). The previous implementation
+  // copied the entire video into JS memory for every Range request, which can
+  // crash/reload a tablet tab when videos are large.
+  const blob = await cached.blob();
+  const size = blob.size;
   const range = parseByteRange(request.headers.get("Range"), size);
 
   if (!range) {
@@ -131,16 +130,20 @@ async function cachedRangeResponse(request) {
     });
   }
 
-  const headers = new Headers(cached.headers);
+  const contentType = cached.headers.get("Content-Type") || blob.type || "application/octet-stream";
+  const chunk = blob.slice(range.start, range.end + 1, contentType);
+
+  const headers = new Headers();
+  headers.set("Content-Type", contentType);
   headers.set("Accept-Ranges", "bytes");
   headers.set("Content-Range", `bytes ${range.start}-${range.end}/${size}`);
   headers.set("Content-Length", String(range.length));
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
 
-  // Response.arrayBuffer() contains decoded bytes, so retaining a compressed
-  // Content-Encoding header could make the browser interpret the slice wrong.
-  headers.delete("Content-Encoding");
+  const etag = cached.headers.get("ETag");
+  if (etag) headers.set("ETag", etag);
 
-  return new Response(buffer.slice(range.start, range.end + 1), {
+  return new Response(chunk, {
     status: 206,
     statusText: "Partial Content",
     headers,
@@ -152,17 +155,21 @@ async function handleMediaRequest(request) {
     return cacheFirst(request, MEDIA_CACHE);
   }
 
-  // Prefer the fully downloaded offline copy. This allows HTML5 video to seek
-  // normally while airplane mode / Wi-Fi loss is active.
+  // While online, let R2/Worker serve byte ranges natively. This avoids
+  // touching a potentially very large cached video and keeps playback light.
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse && (networkResponse.ok || networkResponse.status === 206)) {
+      return networkResponse;
+    }
+  } catch (error) {
+    // Network unavailable: fall through to the fully cached offline object.
+  }
+
   const cachedRange = await cachedRangeResponse(request);
   if (cachedRange) return cachedRange;
 
-  // If the media was not prepared offline, fall back to R2 while online.
-  try {
-    return await fetch(request);
-  } catch (error) {
-    return new Response("Offline media unavailable", { status: 503 });
-  }
+  return new Response("Offline media unavailable", { status: 503 });
 }
 
 self.addEventListener("fetch", (event) => {
@@ -226,8 +233,8 @@ async function prepareOffline(prefixes, uiKeys, client) {
 
   for (const mediaUrl of mediaUrls) {
     try {
-      // Deliberately fetch the complete object without Range headers so video
-      // byte ranges can later be generated locally from this cached response.
+      // Store the full media response once. Offline byte ranges are generated
+      // later from this canonical cached object.
       const request = new Request(new URL(mediaUrl, self.location.origin).href, {
         method: "GET",
       });
