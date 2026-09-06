@@ -1,4 +1,4 @@
-const SHELL_CACHE = "lcc-shell-v3-7";
+const SHELL_CACHE = "lcc-shell-v3-8";
 const MEDIA_CACHE = "lcc-media-v3";
 
 const SHELL_ASSETS = [
@@ -6,6 +6,7 @@ const SHELL_ASSETS = [
   "/index.html",
   "/styles.css",
   "/app.js",
+  "/thumbnail-mode.js",
   "/packery-layout.js",
   "/video-audio.js",
   "/vendor/packery.js",
@@ -106,16 +107,10 @@ function parseByteRange(rangeHeader, size) {
 
 async function cachedRangeResponse(request) {
   const cache = await caches.open(MEDIA_CACHE);
-
-  // Offline preparation stores one complete response for every media URL.
-  // Match that full object rather than the incoming Range request.
   const fullRequest = new Request(request.url, { method: "GET" });
   const cached = await cache.match(fullRequest);
   if (!cached) return null;
 
-  // IMPORTANT: use Blob.slice(), not arrayBuffer(). The previous implementation
-  // copied the entire video into JS memory for every Range request, which can
-  // crash/reload a tablet tab when videos are large.
   const blob = await cached.blob();
   const size = blob.size;
   const range = parseByteRange(request.headers.get("Range"), size);
@@ -155,8 +150,6 @@ async function handleMediaRequest(request) {
     return cacheFirst(request, MEDIA_CACHE);
   }
 
-  // While online, let R2/Worker serve byte ranges natively. This avoids
-  // touching a potentially very large cached video and keeps playback light.
   try {
     const networkResponse = await fetch(request);
     if (networkResponse && (networkResponse.ok || networkResponse.status === 206)) {
@@ -186,6 +179,11 @@ self.addEventListener("fetch", (event) => {
 
   if (url.pathname === "/img") {
     event.respondWith(handleMediaRequest(request));
+    return;
+  }
+
+  if (url.pathname === "/thumb") {
+    event.respondWith(cacheFirst(request, MEDIA_CACHE));
     return;
   }
 
@@ -222,7 +220,11 @@ async function prepareOffline(prefixes, uiKeys, client) {
       await cache.put(apiRequest, response.clone());
       const data = await response.json();
       const media = data.media || data.images || [];
-      mediaUrls = mediaUrls.concat(media.map((item) => item.url));
+
+      for (const item of media) {
+        if (item.url) mediaUrls.push(item.url);
+        if (item.thumbUrl) mediaUrls.push(item.thumbUrl);
+      }
     } catch (error) {}
   }
 
@@ -233,8 +235,6 @@ async function prepareOffline(prefixes, uiKeys, client) {
 
   for (const mediaUrl of mediaUrls) {
     try {
-      // Store the full media response once. Offline byte ranges are generated
-      // later from this canonical cached object.
       const request = new Request(new URL(mediaUrl, self.location.origin).href, {
         method: "GET",
       });
