@@ -61,7 +61,7 @@ button {
   position: absolute;
   z-index: 3;
   left: 50%;
-  top: 27%;
+  top: 19%;
   transform: translate(-50%, -50%);
   min-width: 220px;
   padding: 18px 44px;
@@ -100,9 +100,13 @@ button {
   opacity: .65;
 }
 
-.selector-screen.active {
+/* MICE / Leisure remains the original two-panel selector. */
+#selector.selector-screen.active {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+  column-count: initial !important;
+  gap: 0;
 }
 
 .selector-home-button {
@@ -127,16 +131,20 @@ button {
   background: var(--blue);
 }
 
-.choice-panel {
+#selector .choice-panel {
   position: relative;
+  width: auto;
+  height: auto;
+  margin: 0;
   overflow: hidden;
   border: 0;
+  border-radius: 0;
   padding: 0;
   cursor: pointer;
   background: #111;
 }
 
-.choice-panel img {
+#selector .choice-panel img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -145,18 +153,18 @@ button {
   transition: transform .35s ease;
 }
 
-.choice-panel::after {
+#selector .choice-panel::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(to bottom, rgba(0, 0, 0, .06), rgba(0, 0, 0, .24));
 }
 
-.choice-panel:active img {
+#selector .choice-panel:active img {
   transform: scale(1.02);
 }
 
-.choice-label {
+#selector .choice-label {
   position: absolute;
   z-index: 2;
   left: 50%;
@@ -276,19 +284,19 @@ button {
   background: var(--blue);
 }
 
-.gallery-wrap {
+/* Collage styles are intentionally scoped ONLY to final image galleries. */
+#gallery .gallery-wrap {
   padding: 8px;
   background: #f3f4f5;
 }
 
-/* Default mode: dense collage/masonry. Every photo keeps its full aspect ratio. */
-.gallery-grid {
+#gallery .gallery-grid {
   width: 100%;
   column-count: 5;
   column-gap: 7px;
 }
 
-.gallery-card {
+#gallery .gallery-card {
   display: block;
   width: 100%;
   margin: 0 0 7px;
@@ -301,26 +309,25 @@ button {
   cursor: zoom-in;
 }
 
-.gallery-card img {
+#gallery .gallery-card img {
   display: block;
   width: 100%;
   height: auto;
   object-fit: contain;
 }
 
-.gallery-card:active {
+#gallery .gallery-card:active {
   opacity: .88;
 }
 
-/* Kept ready as a one-line fallback in app.js: CONFIG.galleryMode = "selector". */
-.gallery-grid.selector-mode {
+#gallery .gallery-grid.selector-mode {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 14px;
   column-count: initial;
 }
 
-.gallery-grid.selector-mode .gallery-card {
+#gallery .gallery-grid.selector-mode .gallery-card {
   position: relative;
   aspect-ratio: 4 / 3;
   margin: 0;
@@ -329,7 +336,7 @@ button {
   cursor: pointer;
 }
 
-.gallery-grid.selector-mode .gallery-card img {
+#gallery .gallery-grid.selector-mode .gallery-card img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -459,19 +466,19 @@ button {
 }
 
 @media (max-width: 1399px) {
-  .gallery-grid {
+  #gallery .gallery-grid {
     column-count: 4;
   }
 }
 
 @media (max-width: 980px) {
-  .gallery-grid {
+  #gallery .gallery-grid {
     column-count: 3;
   }
 }
 
 @media (max-aspect-ratio: 1/1) {
-  .selector-screen.active {
+  #selector.selector-screen.active {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr 1fr;
   }
@@ -485,7 +492,7 @@ button {
   }
 
   .start-button {
-    top: 24%;
+    top: 16%;
   }
 }
 
@@ -499,11 +506,11 @@ button {
     gap: 12px;
   }
 
-  .gallery-grid {
+  #gallery .gallery-grid {
     column-count: 2;
   }
 
-  .gallery-grid.selector-mode {
+  #gallery .gallery-grid.selector-mode {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
