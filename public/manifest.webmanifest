@@ -1,0 +1,10 @@
+{
+  "name": "Lufthansa City Center - Viajes Dannemann",
+  "short_name": "LCC Dannemann",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#ffffff",
+  "theme_color": "#01164D"
+}
