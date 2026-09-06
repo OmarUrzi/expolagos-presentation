@@ -1,5 +1,5 @@
 const CONFIG = {
-  galleryMode: "collage", // Change to "selector" to restore the old cropped preview grid.
+  galleryMode: "collage",
   ui: {
     cover: "PORTADA.jpeg",
     MICE: "PORTADA MICE.jpg",
@@ -7,35 +7,36 @@ const CONFIG = {
   },
   sections: {
     MICE: [
-      { name: "Adventure", prefix: "ADVENTURE MICE/" },
-      { name: "Be Local", prefix: "BE LOCAL MICE/" },
-      { name: "Food", prefix: "FOOD MICE/" },
-      { name: "Lake", prefix: "LAKE MICE/" },
-      { name: "Mountain", prefix: "MOUNTAIN MICE/" },
-      { name: "Party", prefix: "PARTY MICE/" },
-      { name: "Transportation", prefix: "TRANSPORTATION MICE/" },
-      { name: "Wild", prefix: "WILD MICE/" },
-      { name: "Winter", prefix: "WINTER MICE/" },
+      { name: "ADVENTURE", prefix: "ADVENTURE MICE/" },
+      { name: "BE LOCAL", prefix: "BE LOCAL MICE/" },
+      { name: "FOOD", prefix: "FOOD MICE/" },
+      { name: "LAKE", prefix: "LAKE MICE/" },
+      { name: "MOUNTAIN", prefix: "MOUNTAIN MICE/" },
+      { name: "PARTY", prefix: "PARTY MICE/" },
+      { name: "TRANSPORTATION", prefix: "TRANSPORTATION MICE/" },
+      { name: "WILD", prefix: "WILD MICE/" },
+      { name: "WINTER", prefix: "WINTER MICE/" },
     ],
     Leisure: [
-      { name: "Adventure", prefix: "ADVENTURE LEISURE/" },
-      { name: "Be Local", prefix: "BE LOCAL LEISURE/" },
-      { name: "Lake", prefix: "LAKE LEISURE/" },
-      { name: "Mini Cat", prefix: "MINI CAT LEISURE/" },
-      { name: "Mountain", prefix: "MOUNTAIN LEISURE/" },
-      { name: "Transportation", prefix: "TRANSPORTATION LEISURE/" },
-      { name: "Wild", prefix: "WILD LEISURE/" },
-      { name: "Winter", prefix: "WINTER LEISURE/" },
+      { name: "ADVENTURE", prefix: "ADVENTURE LEISURE/" },
+      { name: "BE LOCAL", prefix: "BE LOCAL LEISURE/" },
+      { name: "LAKE", prefix: "LAKE LEISURE/" },
+      { name: "MINI CAT", prefix: "MINI CAT LEISURE/" },
+      { name: "MOUNTAIN", prefix: "MOUNTAIN LEISURE/" },
+      { name: "TRANSPORTATION", prefix: "TRANSPORTATION LEISURE/" },
+      { name: "WILD", prefix: "WILD LEISURE/" },
+      { name: "WINTER", prefix: "WINTER LEISURE/" },
     ],
   },
 };
 
-const OFFLINE_FINGERPRINT_KEY = "expolagos-offline-fingerprint-v1";
+const OFFLINE_FINGERPRINT_KEY = "expolagos-offline-fingerprint-v2";
 
 const state = {
   section: null,
   category: null,
   images: [],
+  videos: [],
   lightboxIndex: 0,
   offlinePlan: null,
 };
@@ -64,7 +65,7 @@ function openSection(section) {
   state.section = section;
   state.category = null;
 
-  $("categoriesTitle").textContent = section;
+  $("categoriesTitle").textContent = section.toUpperCase();
   $("categoriesBackground").style.backgroundImage = `url("${imageUrl(CONFIG.ui[section])}")`;
 
   const grid = $("categoriesGrid");
@@ -73,7 +74,7 @@ function openSection(section) {
   CONFIG.sections[section].forEach((category) => {
     const button = document.createElement("button");
     button.className = "category-button";
-    button.textContent = category.name;
+    button.textContent = category.name.toUpperCase();
     button.addEventListener("click", () => openGallery(category));
     grid.appendChild(button);
   });
@@ -83,8 +84,8 @@ function openSection(section) {
 
 async function openGallery(category) {
   state.category = category;
-  $("galleryTitle").textContent = `${state.section} · ${category.name}`;
-  $("galleryContent").innerHTML = '<div class="loading">Cargando imágenes...</div>';
+  $("galleryTitle").textContent = `${state.section.toUpperCase()} · ${category.name.toUpperCase()}`;
+  $("galleryContent").innerHTML = '<div class="loading">Cargando contenido...</div>';
   showScreen("gallery");
 
   try {
@@ -93,18 +94,85 @@ async function openGallery(category) {
 
     const data = await response.json();
     state.images = data.images || [];
+    state.videos = data.videos || [];
     renderGallery();
   } catch (error) {
     $("galleryContent").innerHTML = '<div class="error">No se pudo cargar esta galería.</div>';
   }
 }
 
+function createImageCard(image, index) {
+  const card = document.createElement("button");
+  card.className = "gallery-card";
+  card.type = "button";
+  card.setAttribute("aria-label", `Abrir imagen ${index + 1}`);
+
+  const img = document.createElement("img");
+  img.src = image.url;
+  img.alt = "";
+  img.loading = "lazy";
+  img.decoding = "async";
+
+  card.appendChild(img);
+  card.addEventListener("click", () => openLightbox(index));
+  return card;
+}
+
+function createVideoCard(video) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "gallery-video-card";
+
+  const player = document.createElement("video");
+  player.src = video.url;
+  player.controls = true;
+  player.preload = "metadata";
+  player.playsInline = true;
+  player.setAttribute("playsinline", "");
+
+  wrapper.appendChild(player);
+  return wrapper;
+}
+
 function renderGallery() {
   const content = $("galleryContent");
   content.innerHTML = "";
 
-  if (!state.images.length) {
-    content.innerHTML = '<div class="empty">No hay imágenes en esta categoría.</div>';
+  if (!state.images.length && !state.videos.length) {
+    content.innerHTML = '<div class="empty">No hay contenido en esta categoría.</div>';
+    return;
+  }
+
+  if (state.videos.length) {
+    const layout = document.createElement("div");
+    layout.className = "mixed-gallery-layout";
+
+    const left = document.createElement("div");
+    left.className = "mixed-photo-column mixed-photo-left";
+
+    const center = document.createElement("div");
+    center.className = "mixed-video-column";
+
+    const right = document.createElement("div");
+    right.className = "mixed-photo-column mixed-photo-right";
+
+    const splitIndex = Math.ceil(state.images.length / 2);
+
+    state.images.slice(0, splitIndex).forEach((image, index) => {
+      left.appendChild(createImageCard(image, index));
+    });
+
+    state.videos.forEach((video) => {
+      center.appendChild(createVideoCard(video));
+    });
+
+    state.images.slice(splitIndex).forEach((image, index) => {
+      right.appendChild(createImageCard(image, splitIndex + index));
+    });
+
+    layout.appendChild(left);
+    layout.appendChild(center);
+    layout.appendChild(right);
+    content.appendChild(layout);
     return;
   }
 
@@ -116,22 +184,7 @@ function renderGallery() {
   }
 
   state.images.forEach((image, index) => {
-    const card = document.createElement("button");
-    card.className = "gallery-card";
-    card.type = "button";
-    card.setAttribute("aria-label", `Abrir imagen ${index + 1}`);
-
-    const img = document.createElement("img");
-    img.src = image.url;
-    img.alt = "";
-    img.loading = "lazy";
-    img.decoding = "async";
-
-    card.appendChild(img);
-
-    // The collage is the primary experience, but the fullscreen viewer stays available.
-    card.addEventListener("click", () => openLightbox(index));
-    grid.appendChild(card);
+    grid.appendChild(createImageCard(image, index));
   });
 
   content.appendChild(grid);
@@ -224,16 +277,16 @@ async function getOfflinePlan() {
   if (!response.ok) throw new Error("Unable to inspect media library");
 
   const data = await response.json();
-  const images = [...(data.images || [])].sort((a, b) => a.key.localeCompare(b.key));
+  const media = [...(data.media || data.images || [])].sort((a, b) => a.key.localeCompare(b.key));
 
-  const signature = images
-    .map((image) => `${image.key}|${image.size || 0}|${image.uploaded || ""}`)
+  const signature = media
+    .map((item) => `${item.key}|${item.size || 0}|${item.uploaded || ""}|${item.etag || ""}`)
     .join("\n");
 
   return {
     fingerprint: await hashText(signature),
-    count: images.length,
-    bytes: images.reduce((total, image) => total + (image.size || 0), 0),
+    count: media.length,
+    bytes: media.reduce((total, item) => total + (item.size || 0), 0),
   };
 }
 
@@ -263,10 +316,9 @@ async function refreshOfflineButton() {
       return;
     }
 
-    button.textContent = savedFingerprint ? "Actualizar offline" : "Preparar offline";
+    button.textContent = savedFingerprint ? "ACTUALIZAR OFFLINE" : "PREPARAR OFFLINE";
     button.hidden = false;
   } catch (error) {
-    // If the library cannot be checked, do not show a stale action button.
     button.hidden = true;
   }
 }
@@ -285,7 +337,7 @@ async function prepareOffline() {
     state.offlinePlan = plan;
 
     const proceed = window.confirm(
-      `Se guardarán ${plan.count} imágenes (${formatBytes(plan.bytes)}) en esta tablet. ¿Continuar?`,
+      `Se guardarán ${plan.count} archivos (${formatBytes(plan.bytes)}) en esta tablet. ¿Continuar?`,
     );
 
     if (!proceed) {
@@ -329,8 +381,8 @@ if ("serviceWorker" in navigator) {
       $("offlineButton").disabled = false;
 
       if (data.failed) {
-        $("offlineText").textContent = `Offline preparado parcialmente. ${data.failed} imágenes no pudieron guardarse.`;
-        $("offlineButton").textContent = "Reintentar offline";
+        $("offlineText").textContent = `Offline preparado parcialmente. ${data.failed} archivos no pudieron guardarse.`;
+        $("offlineButton").textContent = "REINTENTAR OFFLINE";
         $("offlineButton").hidden = false;
       } else {
         if (state.offlinePlan?.fingerprint) {
