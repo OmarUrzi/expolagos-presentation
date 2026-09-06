@@ -2,8 +2,18 @@
   // Easy rollback switch. Set to false to return gallery cards to original images.
   const USE_THUMBNAILS = true;
   const THUMB_WIDTH = 960;
+  const MIGRATION_KEY = "expolagos-thumbnail-offline-migrated-v1";
+  const OFFLINE_FINGERPRINT_KEY = "expolagos-offline-fingerprint-v2";
 
   if (!USE_THUMBNAILS) return;
+
+  // Existing tablets may already have the old original-only offline package.
+  // Invalidate it once so the UI offers one more "Actualizar offline" pass that
+  // also stores thumbnails. After that, the normal fingerprint logic resumes.
+  if (!localStorage.getItem(MIGRATION_KEY)) {
+    localStorage.removeItem(OFFLINE_FINGERPRINT_KEY);
+    localStorage.setItem(MIGRATION_KEY, "1");
+  }
 
   const galleryContent = document.getElementById("galleryContent");
   if (!galleryContent) return;
