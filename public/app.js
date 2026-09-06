@@ -44,9 +44,135 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const imageUrl = (key) => `/img?key=${encodeURIComponent(key)}`;
 
+function ensureVideoSurroundStyles() {
+  if (document.getElementById("video-surround-styles")) return;
+
+  const style = document.createElement("style");
+  style.id = "video-surround-styles";
+  style.textContent = `
+    #gallery .video-surround-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+    }
+
+    #gallery .video-surround-band {
+      width: 100%;
+      column-count: 5;
+      column-gap: 7px;
+    }
+
+    #gallery .video-surround-band .gallery-card,
+    #gallery .video-surround-side .gallery-card {
+      break-inside: avoid;
+    }
+
+    #gallery .video-surround-center {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(420px, 1.6fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      width: 100%;
+    }
+
+    #gallery .video-surround-side {
+      column-count: 2;
+      column-gap: 7px;
+    }
+
+    #gallery .video-surround-video {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-self: start;
+      min-width: 0;
+    }
+
+    #gallery .video-surround-video .gallery-video-card {
+      width: 100%;
+      margin: 0;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #000;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+    }
+
+    #gallery .video-surround-video .gallery-video-card video {
+      display: block;
+      width: 100%;
+      max-height: 72vh;
+      background: #000;
+      object-fit: contain;
+    }
+
+    @media (max-width: 1399px) {
+      #gallery .video-surround-band {
+        column-count: 4;
+      }
+
+      #gallery .video-surround-center {
+        grid-template-columns: minmax(0, .9fr) minmax(360px, 1.45fr) minmax(0, .9fr);
+      }
+
+      #gallery .video-surround-side {
+        column-count: 1;
+      }
+    }
+
+    @media (max-width: 980px) {
+      #gallery .video-surround-band {
+        column-count: 3;
+      }
+
+      #gallery .video-surround-center {
+        grid-template-columns: 1fr;
+      }
+
+      #gallery .video-surround-video {
+        order: 1;
+      }
+
+      #gallery .video-surround-side {
+        column-count: 3;
+      }
+
+      #gallery .video-surround-side:first-child {
+        order: 0;
+      }
+
+      #gallery .video-surround-side:last-child {
+        order: 2;
+      }
+    }
+
+    @media (max-width: 650px) {
+      #gallery .video-surround-band,
+      #gallery .video-surround-side {
+        column-count: 2;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+ensureVideoSurroundStyles();
+
+function syncGalleryVideos(screenId) {
+  document.querySelectorAll("#gallery video").forEach((video) => {
+    if (screenId === "gallery") {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  });
+}
+
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach((screen) => screen.classList.remove("active"));
   $(id).classList.add("active");
+  syncGalleryVideos(id);
   window.scrollTo(0, 0);
 }
 
@@ -125,12 +251,96 @@ function createVideoCard(video) {
   const player = document.createElement("video");
   player.src = video.url;
   player.controls = true;
-  player.preload = "metadata";
+  player.autoplay = true;
+  player.muted = true;
+  player.defaultMuted = true;
+  player.loop = true;
+  player.preload = "auto";
   player.playsInline = true;
+
+  player.setAttribute("autoplay", "");
+  player.setAttribute("muted", "");
+  player.setAttribute("loop", "");
   player.setAttribute("playsinline", "");
+  player.setAttribute("webkit-playsinline", "");
+
+  const tryPlay = () => player.play().catch(() => {});
+  player.addEventListener("loadedmetadata", tryPlay, { once: true });
+  player.addEventListener("canplay", tryPlay, { once: true });
 
   wrapper.appendChild(player);
+  requestAnimationFrame(tryPlay);
   return wrapper;
+}
+
+function appendImageRange(container, entries) {
+  entries.forEach(({ image, index }) => {
+    container.appendChild(createImageCard(image, index));
+  });
+}
+
+function renderVideoSurroundGallery(content) {
+  const indexedImages = state.images.map((image, index) => ({ image, index }));
+  const total = indexedImages.length;
+
+  let topCount = 0;
+  let bottomCount = 0;
+
+  if (total >= 4) {
+    topCount = Math.min(Math.max(Math.round(total * 0.22), 2), 7);
+    bottomCount = Math.min(Math.max(Math.round(total * 0.22), 2), 7);
+
+    while (topCount + bottomCount > Math.max(2, total - 2)) {
+      if (bottomCount > topCount) bottomCount -= 1;
+      else topCount -= 1;
+    }
+  }
+
+  const topImages = indexedImages.slice(0, topCount);
+  const bottomImages = bottomCount ? indexedImages.slice(total - bottomCount) : [];
+  const middleImages = indexedImages.slice(topCount, bottomCount ? total - bottomCount : total);
+  const sideSplit = Math.ceil(middleImages.length / 2);
+  const leftImages = middleImages.slice(0, sideSplit);
+  const rightImages = middleImages.slice(sideSplit);
+
+  const layout = document.createElement("div");
+  layout.className = "video-surround-layout";
+
+  if (topImages.length) {
+    const top = document.createElement("div");
+    top.className = "video-surround-band video-surround-top";
+    appendImageRange(top, topImages);
+    layout.appendChild(top);
+  }
+
+  const centerRow = document.createElement("div");
+  centerRow.className = "video-surround-center";
+
+  const left = document.createElement("div");
+  left.className = "video-surround-side video-surround-left";
+  appendImageRange(left, leftImages);
+
+  const videoCenter = document.createElement("div");
+  videoCenter.className = "video-surround-video";
+  state.videos.forEach((video) => videoCenter.appendChild(createVideoCard(video)));
+
+  const right = document.createElement("div");
+  right.className = "video-surround-side video-surround-right";
+  appendImageRange(right, rightImages);
+
+  centerRow.appendChild(left);
+  centerRow.appendChild(videoCenter);
+  centerRow.appendChild(right);
+  layout.appendChild(centerRow);
+
+  if (bottomImages.length) {
+    const bottom = document.createElement("div");
+    bottom.className = "video-surround-band video-surround-bottom";
+    appendImageRange(bottom, bottomImages);
+    layout.appendChild(bottom);
+  }
+
+  content.appendChild(layout);
 }
 
 function renderGallery() {
@@ -143,36 +353,8 @@ function renderGallery() {
   }
 
   if (state.videos.length) {
-    const layout = document.createElement("div");
-    layout.className = "mixed-gallery-layout";
-
-    const left = document.createElement("div");
-    left.className = "mixed-photo-column mixed-photo-left";
-
-    const center = document.createElement("div");
-    center.className = "mixed-video-column";
-
-    const right = document.createElement("div");
-    right.className = "mixed-photo-column mixed-photo-right";
-
-    const splitIndex = Math.ceil(state.images.length / 2);
-
-    state.images.slice(0, splitIndex).forEach((image, index) => {
-      left.appendChild(createImageCard(image, index));
-    });
-
-    state.videos.forEach((video) => {
-      center.appendChild(createVideoCard(video));
-    });
-
-    state.images.slice(splitIndex).forEach((image, index) => {
-      right.appendChild(createImageCard(image, splitIndex + index));
-    });
-
-    layout.appendChild(left);
-    layout.appendChild(center);
-    layout.appendChild(right);
-    content.appendChild(layout);
+    renderVideoSurroundGallery(content);
+    syncGalleryVideos("gallery");
     return;
   }
 
