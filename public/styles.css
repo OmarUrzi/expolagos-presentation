@@ -73,6 +73,7 @@ button {
   font-weight: 700;
   box-shadow: var(--shadow);
   cursor: pointer;
+  text-transform: uppercase;
 }
 
 .start-button:active {
@@ -94,13 +95,13 @@ button {
   box-shadow: 0 5px 20px rgba(0, 0, 0, .12);
   backdrop-filter: blur(8px);
   cursor: pointer;
+  text-transform: uppercase;
 }
 
 .offline-button:disabled {
   opacity: .65;
 }
 
-/* MICE / Leisure remains the original two-panel selector. */
 #selector.selector-screen.active {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -124,6 +125,7 @@ button {
   box-shadow: 0 5px 20px rgba(0, 0, 0, .13);
   backdrop-filter: blur(10px);
   cursor: pointer;
+  text-transform: uppercase;
 }
 
 .selector-home-button:active {
@@ -179,6 +181,7 @@ button {
   font-weight: 700;
   box-shadow: var(--shadow);
   text-align: center;
+  text-transform: uppercase;
 }
 
 .categories-background {
@@ -235,6 +238,7 @@ button {
   color: var(--blue);
   font-weight: 650;
   cursor: pointer;
+  text-transform: uppercase;
 }
 
 .nav-button:active {
@@ -248,6 +252,7 @@ button {
   font-weight: 700;
   text-align: center;
   white-space: nowrap;
+  text-transform: uppercase;
 }
 
 .categories-grid {
@@ -276,6 +281,7 @@ button {
   backdrop-filter: blur(6px);
   cursor: pointer;
   transition: background .15s ease, color .15s ease, transform .15s ease;
+  text-transform: uppercase;
 }
 
 .category-button:active {
@@ -284,7 +290,6 @@ button {
   background: var(--blue);
 }
 
-/* Collage styles are intentionally scoped ONLY to final image galleries. */
 #gallery .gallery-wrap {
   padding: 8px;
   background: #f3f4f5;
@@ -318,6 +323,47 @@ button {
 
 #gallery .gallery-card:active {
   opacity: .88;
+}
+
+#gallery .mixed-gallery-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 1.45fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  width: 100%;
+}
+
+#gallery .mixed-photo-column {
+  column-count: 2;
+  column-gap: 7px;
+}
+
+#gallery .mixed-photo-column .gallery-card {
+  break-inside: avoid;
+}
+
+#gallery .mixed-video-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  top: 86px;
+}
+
+#gallery .gallery-video-card {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+
+#gallery .gallery-video-card video {
+  display: block;
+  width: 100%;
+  max-height: calc(100vh - 120px);
+  background: #000;
+  object-fit: contain;
 }
 
 #gallery .gallery-grid.selector-mode {
@@ -469,10 +515,31 @@ button {
   #gallery .gallery-grid {
     column-count: 4;
   }
+
+  #gallery .mixed-gallery-layout {
+    grid-template-columns: minmax(0, .9fr) minmax(300px, 1.3fr) minmax(0, .9fr);
+  }
+
+  #gallery .mixed-photo-column {
+    column-count: 1;
+  }
 }
 
 @media (max-width: 980px) {
   #gallery .gallery-grid {
+    column-count: 3;
+  }
+
+  #gallery .mixed-gallery-layout {
+    grid-template-columns: 1fr;
+  }
+
+  #gallery .mixed-video-column {
+    order: -1;
+    position: static;
+  }
+
+  #gallery .mixed-photo-column {
     column-count: 3;
   }
 }
@@ -512,5 +579,9 @@ button {
 
   #gallery .gallery-grid.selector-mode {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #gallery .mixed-photo-column {
+    column-count: 2;
   }
 }
