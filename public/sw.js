@@ -1,4 +1,4 @@
-const SHELL_CACHE = "lcc-shell-v3-1";
+const SHELL_CACHE = "lcc-shell-v3-2";
 const MEDIA_CACHE = "lcc-media-v3";
 
 self.addEventListener("install", (event) => {
@@ -41,7 +41,7 @@ async function networkFirst(request, cacheName, fallbackUrl) {
   const cache = await caches.open(cacheName);
 
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache: "no-store" });
     if (response.ok) await cache.put(request, response.clone());
     return response;
   } catch (error) {
@@ -74,7 +74,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (request.mode === "navigate") {
+  if (
+    request.mode === "navigate" ||
+    url.pathname === "/" ||
+    url.pathname === "/index.html" ||
+    url.pathname === "/styles.css" ||
+    url.pathname === "/app.js" ||
+    url.pathname === "/manifest.webmanifest"
+  ) {
     event.respondWith(networkFirst(request, SHELL_CACHE, "/"));
     return;
   }
@@ -98,7 +105,7 @@ async function prepareOffline(prefixes, uiKeys, client) {
 
     try {
       const apiRequest = new Request(new URL(apiUrl, self.location.origin).href);
-      const response = await fetch(apiRequest);
+      const response = await fetch(apiRequest, { cache: "no-store" });
       if (!response.ok) continue;
 
       await cache.put(apiRequest, response.clone());
