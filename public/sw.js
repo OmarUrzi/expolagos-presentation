@@ -1,4 +1,4 @@
-const SHELL_CACHE = "lcc-shell-v3-4";
+const SHELL_CACHE = "lcc-shell-v3-5";
 const MEDIA_CACHE = "lcc-media-v3";
 
 const SHELL_ASSETS = [
